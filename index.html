@@ -15,41 +15,17 @@
     max-width: 480px;
     margin: 0 auto;
   }
-  .header {
-    padding-bottom: 12px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid #2c2c2e;
-  }
+  .header { padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid #2c2c2e; }
   .title { font-size: 20px; font-weight: 700; }
   .subtitle { font-size: 12px; color: #8e8e93; margin-top: 2px; }
-  
-  .card {
-    background-color: #1c1c1e;
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 20px;
-    border: 1px solid #2c2c2e;
-  }
-  
-  /* Top Eingabe Layout */
-  .mic-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 14px;
-  }
+  .card { background-color: #1c1c1e; border-radius: 16px; padding: 16px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
+  .mic-container { display: flex; justify-content: center; margin-bottom: 14px; }
   .mic-btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background-color: #0a84ff;
-    border: none;
-    font-size: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 0.1s, background-color 0.2s;
-    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
+    width: 64px; height: 64px; border-radius: 50%;
+    background-color: #0a84ff; border: none; font-size: 28px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
+    transition: all 0.2s;
   }
   .mic-btn.recording {
     background-color: #ff3b30;
@@ -60,117 +36,40 @@
     70% { box-shadow: 0 0 0 14px rgba(255, 59, 48, 0); }
     100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
   }
-
   textarea {
-    width: 100%;
-    background-color: #2c2c2e;
-    color: #ffffff;
-    border: 1px solid #3a3a3c;
-    border-radius: 12px;
-    padding: 12px;
-    font-size: 15px;
-    font-family: inherit;
-    resize: none;
-    outline: none;
-    margin-bottom: 12px;
+    width: 100%; background-color: #2c2c2e; color: #ffffff;
+    border: 1px solid #3a3a3c; border-radius: 12px; padding: 12px;
+    font-size: 15px; font-family: inherit; resize: none; outline: none; margin-bottom: 12px;
   }
   textarea:focus { border-color: #0a84ff; }
-
   .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-  .chip {
-    background-color: #2c2c2e;
-    color: #d1d1d6;
-    border: none;
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-size: 11px;
-    cursor: pointer;
-  }
-
+  .chip { background-color: #2c2c2e; color: #d1d1d6; border: none; padding: 6px 10px; border-radius: 8px; font-size: 11px; cursor: pointer; }
   .btn-primary {
-    width: 100%;
-    background-color: #0a84ff;
-    color: #ffffff;
-    border: none;
-    border-radius: 12px;
-    padding: 14px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
+    width: 100%; background-color: #0a84ff; color: #ffffff; border: none;
+    border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
   }
   .btn-primary:active { opacity: 0.8; }
-
-  /* Sektionen */
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    margin-top: 20px;
-    padding: 0 4px;
-  }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; margin-top: 20px; padding: 0 4px; }
   .section-title { font-size: 13px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.5px; }
-  .badge {
-    background: rgba(10, 132, 255, 0.2);
-    color: #0a84ff;
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 99px;
-    font-weight: 600;
-  }
-
-  .item-card {
-    background-color: #1c1c1e;
-    border-radius: 14px;
-    padding: 14px;
-    margin-bottom: 10px;
-    border: 1px solid #2c2c2e;
-  }
-
+  .badge { background: rgba(10, 132, 255, 0.2); color: #0a84ff; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+  .item-card { background-color: #1c1c1e; border-radius: 14px; padding: 14px; margin-bottom: 10px; border: 1px solid #2c2c2e; }
   .event-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
   .event-title { font-size: 15px; font-weight: 600; }
   .event-time { font-size: 13px; color: #0a84ff; margin-top: 4px; }
   .btn-cal {
-    width: 100%;
-    background-color: #2c2c2e;
-    color: #0a84ff;
-    border: 1px solid rgba(10, 132, 255, 0.35);
-    padding: 10px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
+    width: 100%; background-color: #2c2c2e; color: #0a84ff;
+    border: 1px solid rgba(10, 132, 255, 0.35); padding: 10px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
   }
-
-  /* To-Do Styling mit Blur & Erledigt-Effekt */
-  .todo-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  .todo-row.done {
-    opacity: 0.45;
-    filter: blur(0.3px);
-  }
+  .todo-row { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.2s ease; }
+  .todo-row.done { opacity: 0.45; filter: blur(0.3px); }
   .checkbox {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    border: 2px solid #636366;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: bold;
-    color: #000;
-    flex-shrink: 0;
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid #636366;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #000; flex-shrink: 0;
   }
   .checkbox.done { background-color: #30d158; border-color: #30d158; color: #fff; }
   .todo-text { font-size: 15px; flex: 1; }
   .todo-text.done { text-decoration: line-through; color: #8e8e93; }
-
   .empty { text-align: center; color: #636366; font-size: 13px; padding: 14px; }
   .del-btn { background: none; border: none; color: #636366; font-size: 16px; padding: 0 4px; cursor: pointer; }
   .clear-btn { background: none; border: none; color: #8e8e93; font-size: 11px; cursor: pointer; }
@@ -183,13 +82,12 @@
     <div class="subtitle" id="dateDisplay"></div>
   </div>
 
-  <!-- Oberster Bereich: Mikrofon, Textbox, Button -->
   <div class="card">
     <div class="mic-container">
       <button id="micBtn" class="mic-btn" onclick="toggleSpeech()" title="Spracheingabe">🎙️</button>
     </div>
 
-    <textarea id="thoughtInput" rows="3" placeholder="Tippe hier oder nutze das Mikrofon (z.B. 'Meeting morgen um 10 Uhr und privat Milch kaufen')..."></textarea>
+    <textarea id="thoughtInput" rows="3" placeholder="Tippe auf das Mikrofon oder schreibe hier..."></textarea>
 
     <div class="chips">
       <button class="chip" onclick="fillExample('Meeting mit Chef morgen um 10 Uhr und privat noch Milch einkaufen')">💡 Beispiel</button>
@@ -199,21 +97,18 @@
     <button class="btn-primary" onclick="processThoughts()">✨ Gedanken sortieren</button>
   </div>
 
-  <!-- Kategorie 1: Kalender-Termine -->
   <div class="section-header">
     <span class="section-title">📅 Kalender-Termine</span>
     <span class="badge" id="eventCount">0</span>
   </div>
   <div id="eventsList"></div>
 
-  <!-- Kategorie 2: To-Dos Arbeit -->
   <div class="section-header">
     <span class="section-title">💼 To-Dos Arbeit</span>
     <button class="clear-btn" onclick="clearDone('work')">Erledigte löschen</button>
   </div>
   <div id="workTodosList"></div>
 
-  <!-- Kategorie 3: To-Dos Privat -->
   <div class="section-header">
     <span class="section-title">🏠 To-Dos Privat</span>
     <button class="clear-btn" onclick="clearDone('private')">Erledigte löschen</button>
@@ -223,12 +118,12 @@
 <script>
   let state = { events: [], todos: [] };
   try {
-    const saved = localStorage.getItem('cockpit_state_v3');
+    const saved = localStorage.getItem('cockpit_state_v5');
     if (saved) state = JSON.parse(saved);
   } catch (e) {}
 
   function saveState() {
-    try { localStorage.setItem('cockpit_state_v3', JSON.stringify(state)); } catch (e) {}
+    try { localStorage.setItem('cockpit_state_v5', JSON.stringify(state)); } catch (e) {}
     render();
   }
 
@@ -240,33 +135,57 @@
     document.getElementById('thoughtInput').value = txt;
   }
 
-  // Live Spracherkennung für Safari / iPhone
+  // Robuste Spracherkennung für iOS Safari über GitHub Pages
   let recognition = null;
   function toggleSpeech() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const btn = document.getElementById('micBtn');
+
     if (!SpeechRecognition) {
-      alert("Nutze für die Spracheingabe am besten das kleine Mikrofon-Symbol unten rechts auf deiner iPhone-Tastatur!");
+      alert("Dein Browser unterstützt keine direkte Spracheingabe. Nutze das Mikrofon unten rechts auf der iPhone-Tastatur!");
       document.getElementById('thoughtInput').focus();
       return;
     }
-    const btn = document.getElementById('micBtn');
+
     if (recognition) {
       recognition.stop();
       return;
     }
-    recognition = new SpeechRecognition();
-    recognition.lang = 'de-DE';
-    recognition.onstart = () => btn.classList.add('recording');
-    recognition.onresult = (e) => {
-      const text = e.results[0][0].transcript;
-      const input = document.getElementById('thoughtInput');
-      input.value = input.value ? input.value + " " + text : text;
-    };
-    recognition.onend = () => {
+
+    try {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'de-DE';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        btn.classList.add('recording');
+      };
+
+      recognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        const input = document.getElementById('thoughtInput');
+        input.value = input.value ? input.value + " " + transcript : transcript;
+      };
+
+      recognition.onerror = (e) => {
+        console.error("Speech error", e.error);
+        btn.classList.remove('recording');
+        recognition = null;
+      };
+
+      recognition.onend = () => {
+        btn.classList.remove('recording');
+        recognition = null;
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error(err);
       btn.classList.remove('recording');
       recognition = null;
-    };
-    recognition.start();
+      alert("Mikrofon konnte nicht gestartet werden. Bitte erlaube den Zugriff in den Safari-Einstellungen.");
+    }
   }
 
   function processThoughts() {
@@ -316,7 +235,6 @@
 
         state.events.unshift({ id: Date.now() + Math.random(), title, date: dateStr, time: timeStr });
       } else {
-        // Unterscheidung Arbeit vs Privat anhand von Keywords
         let category = 'private';
         const workKeywords = ['arbeit', 'chef', 'meeting', 'kunde', 'projekt', 'büro', 'kollege', 'rechnung', 'steuer', 'termin'];
         if (workKeywords.some(keyword => clean.toLowerCase().includes(keyword))) {
@@ -381,7 +299,6 @@
   function render() {
     document.getElementById('eventCount').innerText = state.events.length;
     
-    // Kalender rendern
     const evEl = document.getElementById('eventsList');
     if (state.events.length === 0) {
       evEl.innerHTML = '<div class="item-card empty">Keine Termine vorhanden.</div>';
@@ -400,10 +317,8 @@
       `).join('');
     }
 
-    // To-Dos sortieren: Unvollständige (done: false) zuerst, erledigte (done: true) weiter unten
     const sortedTodos = [...state.todos].sort((a, b) => (a.done === b.done) ? 0 : a.done ? 1 : -1);
 
-    // Arbeit To-Dos rendern
     const workTodos = sortedTodos.filter(t => t.category === 'work');
     const workEl = document.getElementById('workTodosList');
     if (workTodos.length === 0) {
@@ -417,7 +332,6 @@
       `).join('');
     }
 
-    // Privat To-Dos rendern
     const privateTodos = sortedTodos.filter(t => t.category === 'private');
     const privEl = document.getElementById('privateTodosList');
     if (privateTodos.length === 0) {
