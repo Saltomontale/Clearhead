@@ -15,11 +15,46 @@
     max-width: 480px;
     margin: 0 auto;
   }
-  .header { padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid #2c2c2e; }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #2c2c2e;
+  }
   .title { font-size: 20px; font-weight: 700; }
   .subtitle { font-size: 12px; color: #8e8e93; margin-top: 2px; }
-  .card { background-color: #1c1c1e; border-radius: 16px; padding: 16px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
-  .mic-container { display: flex; justify-content: center; margin-bottom: 14px; }
+  .ai-btn {
+    background-color: #1c1c1e;
+    color: #0a84ff;
+    border: 1px solid #2c2c2e;
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ai-btn.active {
+    background-color: rgba(48, 209, 88, 0.15);
+    color: #30d158;
+    border-color: rgba(48, 209, 88, 0.3);
+  }
+
+  .card {
+    background-color: #1c1c1e;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #2c2c2e;
+  }
+  .mic-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 6px;
+  }
   .mic-btn {
     width: 64px; height: 64px; border-radius: 50%;
     background-color: #0a84ff; border: none; font-size: 28px;
@@ -31,27 +66,34 @@
     background-color: #ff3b30;
     animation: pulse 1.5s infinite;
   }
+  .mic-status { font-size: 11px; color: #8e8e93; }
   @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
     70% { box-shadow: 0 0 0 14px rgba(255, 59, 48, 0); }
     100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
   }
+
   textarea {
     width: 100%; background-color: #2c2c2e; color: #ffffff;
     border: 1px solid #3a3a3c; border-radius: 12px; padding: 12px;
     font-size: 15px; font-family: inherit; resize: none; outline: none; margin-bottom: 12px;
   }
   textarea:focus { border-color: #0a84ff; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-  .chip { background-color: #2c2c2e; color: #d1d1d6; border: none; padding: 6px 10px; border-radius: 8px; font-size: 11px; cursor: pointer; }
+
   .btn-primary {
     width: 100%; background-color: #0a84ff; color: #ffffff; border: none;
     border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
   }
   .btn-primary:active { opacity: 0.8; }
-  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; margin-top: 20px; padding: 0 4px; }
+  .btn-primary:disabled { opacity: 0.5; }
+
+  .section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; margin-top: 20px; padding: 0 4px;
+  }
   .section-title { font-size: 13px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.5px; }
   .badge { background: rgba(10, 132, 255, 0.2); color: #0a84ff; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+
   .item-card { background-color: #1c1c1e; border-radius: 14px; padding: 14px; margin-bottom: 10px; border: 1px solid #2c2c2e; }
   .event-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
   .event-title { font-size: 15px; font-weight: 600; }
@@ -61,8 +103,9 @@
     border: 1px solid rgba(10, 132, 255, 0.35); padding: 10px; border-radius: 10px;
     font-size: 13px; font-weight: 600; cursor: pointer;
   }
-  .todo-row { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.2s ease; }
-  .todo-row.done { opacity: 0.45; filter: blur(0.3px); }
+
+  .todo-row { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.25s ease; }
+  .todo-row.done { opacity: 0.4; filter: blur(0.6px); }
   .checkbox {
     width: 22px; height: 22px; border-radius: 50%; border: 2px solid #636366;
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #000; flex-shrink: 0;
@@ -70,60 +113,92 @@
   .checkbox.done { background-color: #30d158; border-color: #30d158; color: #fff; }
   .todo-text { font-size: 15px; flex: 1; }
   .todo-text.done { text-decoration: line-through; color: #8e8e93; }
+
   .empty { text-align: center; color: #636366; font-size: 13px; padding: 14px; }
   .del-btn { background: none; border: none; color: #636366; font-size: 16px; padding: 0 4px; cursor: pointer; }
   .clear-btn { background: none; border: none; color: #8e8e93; font-size: 11px; cursor: pointer; }
+
+  /* Modal für optionalen KI-Key */
+  .modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .modal.open { display: flex; }
+  .modal-box { background: #1c1c1e; border: 1px solid #3a3a3c; border-radius: 16px; padding: 18px; width: 100%; max-width: 360px; }
+  .modal-box h3 { font-size: 16px; margin-bottom: 8px; }
+  .modal-box p { font-size: 12px; color: #8e8e93; line-height: 1.4; margin-bottom: 12px; }
+  .modal-box input {
+    width: 100%; background: #2c2c2e; border: 1px solid #3a3a3c; color: #fff;
+    padding: 10px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; outline: none;
+  }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-actions button { flex: 1; padding: 10px; border-radius: 10px; border: none; font-weight: 600; font-size: 13px; cursor: pointer; }
 </style>
 </head>
 <body>
 
   <div class="header">
-    <div class="title">🧠 Gedanken-Cockpit</div>
-    <div class="subtitle" id="dateDisplay"></div>
+    <div>
+      <div class="title">🧠 Gedanken-Cockpit</div>
+      <div class="subtitle" id="dateDisplay"></div>
+    </div>
+    <button id="aiStatusBtn" class="ai-btn" onclick="openModal()">✨ KI</button>
   </div>
 
   <div class="card">
     <div class="mic-container">
-      <button id="micBtn" class="mic-btn" onclick="toggleSpeech()" title="Spracheingabe">🎙️</button>
+      <button id="micBtn" class="mic-btn" onclick="toggleSpeech()">🎙️</button>
+      <span id="micStatus" class="mic-status">Tippen zum Sprechen</span>
     </div>
 
-    <textarea id="thoughtInput" rows="3" placeholder="Tippe auf das Mikrofon oder schreibe hier..."></textarea>
+    <textarea id="thoughtInput" rows="3" placeholder="Sprich einfach drauflos (z.B. 'Ich müsste morgen um 14 Uhr eigentlich mal zum Zahnarzt und meinem Chef noch die Präsentation schicken')..."></textarea>
 
-    <div class="chips">
-      <button class="chip" onclick="fillExample('Meeting mit Chef morgen um 10 Uhr und privat noch Milch einkaufen')">💡 Beispiel</button>
-      <button class="chip" onclick="document.getElementById('thoughtInput').value=''">🧹 Text leeren</button>
-    </div>
-
-    <button class="btn-primary" onclick="processThoughts()">✨ Gedanken sortieren</button>
+    <button id="sortBtn" class="btn-primary" onclick="processThoughts()">✨ Gedanken sortieren</button>
   </div>
 
+  <!-- 1. Kalender-Termine -->
   <div class="section-header">
     <span class="section-title">📅 Kalender-Termine</span>
     <span class="badge" id="eventCount">0</span>
   </div>
   <div id="eventsList"></div>
 
+  <!-- 2. To-Dos Arbeit -->
   <div class="section-header">
     <span class="section-title">💼 To-Dos Arbeit</span>
     <button class="clear-btn" onclick="clearDone('work')">Erledigte löschen</button>
   </div>
   <div id="workTodosList"></div>
 
+  <!-- 3. To-Dos Privat -->
   <div class="section-header">
     <span class="section-title">🏠 To-Dos Privat</span>
     <button class="clear-btn" onclick="clearDone('private')">Erledigte löschen</button>
   </div>
   <div id="privateTodosList"></div>
 
+  <!-- KI-Key Modal -->
+  <div id="apiModal" class="modal">
+    <div class="modal-box">
+      <h3>✨ KI-Zusammenfassung (Optional)</h3>
+      <p>Ohne Key kürzt der eingebaute Smart-Filter deine Sätze. Für echte KI-Stichpunkte kannst du hier einen kostenlosen <b>Google Gemini API-Key</b> speichern:</p>
+      <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
+      <div class="modal-actions">
+        <button style="background:#0a84ff; color:#fff;" onclick="saveApiKey()">Speichern</button>
+        <button style="background:#2c2c2e; color:#fff;" onclick="closeModal()">Schließen</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   let state = { events: [], todos: [] };
   try {
-    const saved = localStorage.getItem('cockpit_state_v5');
+    const saved = localStorage.getItem('cockpit_state_v6');
     if (saved) state = JSON.parse(saved);
   } catch (e) {}
 
   function saveState() {
-    try { localStorage.setItem('cockpit_state_v5', JSON.stringify(state)); } catch (e) {}
+    try { localStorage.setItem('cockpit_state_v6', JSON.stringify(state)); } catch (e) {}
     render();
   }
 
@@ -131,19 +206,43 @@
     weekday: 'long', day: 'numeric', month: 'long'
   });
 
-  function fillExample(txt) {
-    document.getElementById('thoughtInput').value = txt;
+  function updateAiBadge() {
+    const key = localStorage.getItem('gemini_api_key');
+    const btn = document.getElementById('aiStatusBtn');
+    if (key) {
+      btn.innerText = '✨ KI aktiv';
+      btn.classList.add('active');
+    } else {
+      btn.innerText = '✨ KI';
+      btn.classList.remove('active');
+    }
+  }
+  updateAiBadge();
+
+  function openModal() {
+    document.getElementById('apiKeyInput').value = localStorage.getItem('gemini_api_key') || '';
+    document.getElementById('apiModal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('apiModal').classList.remove('open');
+  }
+  function saveApiKey() {
+    const val = document.getElementById('apiKeyInput').value.trim();
+    if (val) localStorage.setItem('gemini_api_key', val);
+    else localStorage.removeItem('gemini_api_key');
+    updateAiBadge();
+    closeModal();
   }
 
-  // Robuste Spracherkennung für iOS Safari über GitHub Pages
+  // Spracherkennung
   let recognition = null;
   function toggleSpeech() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const btn = document.getElementById('micBtn');
+    const status = document.getElementById('micStatus');
 
     if (!SpeechRecognition) {
-      alert("Dein Browser unterstützt keine direkte Spracheingabe. Nutze das Mikrofon unten rechts auf der iPhone-Tastatur!");
-      document.getElementById('thoughtInput').focus();
+      alert("Dein Browser unterstützt keine direkte Spracheingabe.");
       return;
     }
 
@@ -156,10 +255,10 @@
       recognition = new SpeechRecognition();
       recognition.lang = 'de-DE';
       recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         btn.classList.add('recording');
+        status.innerText = "🔴 Höre zu...";
       };
 
       recognition.onresult = (e) => {
@@ -168,41 +267,113 @@
         input.value = input.value ? input.value + " " + transcript : transcript;
       };
 
-      recognition.onerror = (e) => {
-        console.error("Speech error", e.error);
+      recognition.onerror = () => {
         btn.classList.remove('recording');
+        status.innerText = "Tippen zum Sprechen";
         recognition = null;
       };
 
       recognition.onend = () => {
         btn.classList.remove('recording');
+        status.innerText = "Tippen zum Sprechen";
         recognition = null;
       };
 
       recognition.start();
     } catch (err) {
-      console.error(err);
       btn.classList.remove('recording');
       recognition = null;
-      alert("Mikrofon konnte nicht gestartet werden. Bitte erlaube den Zugriff in den Safari-Einstellungen.");
     }
   }
 
-  function processThoughts() {
+  // Hauptfunktion: Gedanken sortieren & zu Stichpunkten zusammenfassen
+  async function processThoughts() {
     const input = document.getElementById('thoughtInput');
     const text = input.value.trim();
     if (!text) return;
 
-    const parts = text.split(/\s+(?:und\s+danach|und\s+vorher|außerdem|sowie|und\s+noch|und)\s+|,\s*/i);
+    const btn = document.getElementById('sortBtn');
+    btn.innerText = "⏳ Fasse zusammen...";
+    btn.disabled = true;
+
+    const apiKey = localStorage.getItem('gemini_api_key');
+
+    try {
+      if (apiKey) {
+        await summarizeWithGemini(text, apiKey);
+      } else {
+        summarizeLocally(text);
+      }
+      input.value = '';
+      saveState();
+    } catch (e) {
+      summarizeLocally(text);
+      input.value = '';
+      saveState();
+    } finally {
+      btn.innerText = "✨ Gedanken sortieren";
+      btn.disabled = false;
+    }
+  }
+
+  // Intelligenter lokaler Stichpunkt-Komprimierer (ohne API-Key)
+  function condenseToBulletPoint(rawText, isEvent = false) {
+    let s = rawText.trim();
+
+    // 1. Typische gesprochene Einleitungen & Füllphrasen am Satzanfang streichen
+    s = s.replace(/^(ähm|äh|also|ja|ach\s*ja|ach\s*so|übrigens|außerdem|und\s+dann|dann|ich\s+glaube|ich\s+denke)\s+/gi, '');
+    s = s.replace(/^(ich\s+muss|ich\s+müsste|ich\s+sollte|ich\s+will|ich\s+möchte|ich\s+wollte|ich\s+darf|wir\s+müssen|wir\s+sollten)\s+/gi, '');
+
+    // 2. Füllwörter mitten im Satz entfernen
+    s = s.replace(/\b(eigentlich|unbedingt|auf\s+jeden\s+fall|mal\s+wieder|vielleicht|irgendwann|nachher|später|gleich|dann\s+noch|noch\s+kurz|kurz|schnell|bitte|dringend|daran\s+denken\s+dass|daran\s+denken|nicht\s+vergessen\s+dass|nicht\s+vergessen|noch|mal|eben|halt|echt|wirklich|auch)\b/gi, ' ');
+
+    // 3. Nebensatz-Einleitungen & Pronomen bereinigen
+    s = s.replace(/\b(dass\s+ich|dass\s+wir|weil\s+ich|damit\s+ich|ob\s+ich|wenn\s+ich)\b/gi, ' ');
+    s = s.replace(/\b(ich|mir|mich|wir|uns)\b/gi, ' ');
+    s = s.replace(/\b(meinem|meiner|meinen|meine|mein)\s+(chef|chefin|kollegen|kollegin|kunden|arzt|zahnarzt)/gi, '$2');
+
+    // 4. Bei Terminen unnötige Ortsverben am Ende streichen ("zum Zahnarzt gehen" -> "Zahnarzt")
+    if (isEvent) {
+      s = s.replace(/\b(gehen|fahren|laufen|kommen|machen|haben|wahrnehmen|besuchen)\b$/gi, '');
+      s = s.replace(/^(zum|zur|beim|bei\s+der|in\s+die|ins|in\s+den)\s+/gi, '');
+    } else {
+      // 5. Gesprochene Ich-Form am Satzende in sauberen Infinitiv (Stichpunkt-Form) umwandeln
+      const verbMap = {
+        'einkaufe': 'einkaufen', 'kaufe': 'kaufen', 'anrufe': 'anrufen', 'schreibe': 'schreiben',
+        'maile': 'mailen', 'schicke': 'schicken', 'sende': 'senden', 'überweise': 'überweisen',
+        'bezahle': 'bezahlen', 'zahle': 'zahlen', 'buche': 'buchen', 'erledige': 'erledigen',
+        'putze': 'putzen', 'wasche': 'waschen', 'räum': 'räumen', 'aufräume': 'aufräumen',
+        'hole': 'holen', 'abhole': 'abholen', 'bringe': 'bringen', 'wegbringe': 'wegbringen',
+        'mache': 'machen', 'fertigmache': 'fertigmachen', 'vorbereite': 'vorbereiten',
+        'plane': 'planen', 'frage': 'fragen', 'kläre': 'klären', 'lese': 'lesen',
+        'vereinbare': 'vereinbaren', 'bestelle': 'bestellen', 'kündige': 'kündigen', 'packe': 'packen'
+      };
+      s = s.replace(/\b([a-zäöüß]+)\s*$/i, (match) => {
+        const lower = match.toLowerCase();
+        return verbMap[lower] || match;
+      });
+    }
+
+    // Artikel am Satzanfang kürzen für echten Stichpunkt-Stil ("Die Präsentation schicken" -> "Präsentation schicken")
+    s = s.replace(/\s+/g, ' ').trim();
+    s = s.replace(/^(der|die|das|den|dem|einen|eine|ein)\s+/i, '');
+
+    if (!s) return rawText.trim();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function summarizeLocally(text) {
+    // Trennt gesprochene Gedankensprünge
+    const parts = text.split(/\s+(?:und\s+danach|und\s+vorher|und\s+außerdem|außerdem|sowie|und\s+dann\s+noch|und\s+noch|ach\s*ja\s+und|und)\s+|[,.;]+\s*/i);
 
     parts.forEach(part => {
       let clean = part.trim();
       if (!clean) return;
 
       const timeMatch = clean.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i);
-      const isTomorrow = /morgen/i.test(clean);
-      const isDayAfter = /übermorgen/i.test(clean);
-      const weekdayMatch = clean.match(/am\s+(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)/i);
+      const isTomorrow = /\bmorgen\b/i.test(clean);
+      const isDayAfter = /\bübermorgen\b/i.test(clean);
+      const weekdayMatch = clean.match(/(?:am\s+)?\b(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\b/i);
 
       if (timeMatch || isTomorrow || isDayAfter || weekdayMatch) {
         let d = new Date();
@@ -222,36 +393,74 @@
         const dateStr = d.toISOString().split('T')[0];
         const timeStr = String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
 
-        let title = clean
-          .replace(/morgen|übermorgen/gi, '')
-          .replace(/am\s+(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)/gi, '')
-          .replace(/um\s+\d{1,2}(?:[:.]\d{2})?\s*Uhr/gi, '')
-          .replace(/\d{1,2}(?:[:.]\d{2})?\s*Uhr/gi, '')
-          .replace(/ich\s+muss\s+(noch)?/gi, '')
+        let rawTitle = clean
+          .replace(/\b(heute|morgen|übermorgen)\b/gi, '')
+          .replace(/(?:am\s+)?\b(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\b/gi, '')
+          .replace(/(?:um\s+)?\d{1,2}(?:[:.]\d{2})?\s*Uhr/gi, '')
           .trim();
 
-        if (!title) title = clean;
-        title = title.charAt(0).toUpperCase() + title.slice(1);
+        let title = condenseToBulletPoint(rawTitle, true);
+        if (!title) title = "Termin";
 
         state.events.unshift({ id: Date.now() + Math.random(), title, date: dateStr, time: timeStr });
       } else {
         let category = 'private';
-        const workKeywords = ['arbeit', 'chef', 'meeting', 'kunde', 'projekt', 'büro', 'kollege', 'rechnung', 'steuer', 'termin'];
-        if (workKeywords.some(keyword => clean.toLowerCase().includes(keyword))) {
+        const workKeywords = ['arbeit', 'chef', 'chefin', 'meeting', 'kunde', 'kunden', 'projekt', 'büro', 'kollege', 'kollegin', 'rechnung', 'steuer', 'präsentation', 'mail', 'email', 'angebot', 'call', 'bericht', 'bewerbung', 'auftrag'];
+        if (workKeywords.some(kw => clean.toLowerCase().includes(kw))) {
           category = 'work';
         }
 
-        let todoTitle = clean.replace(/^(ich\s+muss\s+noch|ich\s+muss|vergiss\s+nicht|noch)\s+/i, '').trim();
-        todoTitle = todoTitle.charAt(0).toUpperCase() + todoTitle.slice(1);
-        
-        state.todos.unshift({ id: Date.now() + Math.random(), title: todoTitle, done: false, category });
+        // Wort "privat" oder "arbeit" aus dem finalen Stichpunkt entfernen, falls nur zur Sortierung gesagt
+        let cleanedForPoint = clean.replace(/\b(für\s+die\s+arbeit|auf\s+der\s+arbeit|privat)\b/gi, '');
+        let todoTitle = condenseToBulletPoint(cleanedForPoint, false);
+
+        if (todoTitle) {
+          state.todos.unshift({ id: Date.now() + Math.random(), title: todoTitle, done: false, category });
+        }
       }
     });
-
-    input.value = '';
-    saveState();
   }
 
+  // Echte KI-Zusammenfassung via Gemini API
+  async function summarizeWithGemini(text, apiKey) {
+    const todayISO = new Date().toISOString().split('T')[0];
+    const weekday = new Date().toLocaleDateString('de-DE', { weekday: 'long' });
+    const prompt = `Heute ist ${weekday}, der ${todayISO}.
+Analysiere diese eingesprochene Notiz: "${text}".
+Extrahiere alle Termine und Aufgaben und fasse jeden Punkt extrem knapp als präzisen Stichpunkt (2 bis 5 Wörter, Infinitiv oder Nomen, KEINE Füllwörter, keine ganzen Sätze) zusammen!
+Beispiele für gute Stichpunkte:
+- "Ich müsste morgen um 14 Uhr eigentlich mal wieder zum Zahnarzt wegen Kontrolle" -> Event: title "Zahnarzt Kontrolle", time "14:00"
+- "Meinem Chef muss ich unbedingt noch die Präsentation schicken" -> Work-Todo: "Präsentation an Chef senden"
+- "Ich sollte nachher noch daran denken Milch und Brot einzukaufen" -> Private-Todo: "Milch & Brot einkaufen"
+
+Antworte NUR als valides JSON im Format:
+{
+  "events": [{"title": "Kurzer Stichpunkt", "date": "YYYY-MM-DD", "time": "HH:MM"}],
+  "todos": [{"title": "Kurzer Stichpunkt", "category": "work" | "private"}]
+}`;
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      })
+    });
+
+    if (!res.ok) throw new Error("API Fehler");
+    const data = await res.json();
+    const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+
+    (parsed.events || []).forEach(ev => {
+      state.events.unshift({ id: Date.now() + Math.random(), title: ev.title, date: ev.date || todayISO, time: ev.time || "09:00" });
+    });
+    (parsed.todos || []).forEach(td => {
+      state.todos.unshift({ id: Date.now() + Math.random(), title: td.title, done: false, category: td.category === 'work' ? 'work' : 'private' });
+    });
+  }
+
+  // Zuverlässiger Apple Kalender (.ics) Download für iOS Safari
   function exportICS(id) {
     const ev = state.events.find(e => e.id === id);
     if (!ev) return;
@@ -269,7 +478,10 @@
     const ics = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
+      'PRODID:-//GedankenCockpit//DE',
       'BEGIN:VEVENT',
+      'UID:' + Date.now() + '@cockpit',
+      'DTSTAMP:' + fmt(new Date()),
       'DTSTART:' + fmt(start),
       'DTEND:' + fmt(end),
       'SUMMARY:' + ev.title,
@@ -277,7 +489,15 @@
       'END:VCALENDAR'
     ].join('\r\n');
 
-    window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${ev.title.replace(/\s+/g, '_')}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function toggleTodo(id) {
