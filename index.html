@@ -155,7 +155,7 @@
       <span id="micStatus" class="mic-status">Tippen zum Sprechen</span>
     </div>
 
-    <textarea id="thoughtInput" rows="3" placeholder="Sprich einfach drauflos (z.B. 'Ich rufe nachher noch meinen Chef wegen dem Projekt an und kaufe auf dem Heimweg Milch ein')..."></textarea>
+    <textarea id="thoughtInput" rows="3" placeholder="Tippe auf das Mikrofon und sprich einfach drauflos..."></textarea>
 
     <button id="sortBtn" class="btn-primary" onclick="processThoughts()">✨ Gedanken sortieren</button>
   </div>
@@ -185,7 +185,7 @@
   <div id="apiModal" class="modal">
     <div class="modal-box">
       <h3>✨ Google Gemini KI</h3>
-      <p>Für perfekte KI-Stichpunkte kannst du dir auf <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> kostenlos einen Schlüssel erstellen und hier einfügen:</p>
+      <p>Für KI-Spracherkennung und Stichpunkte kannst du auf <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> kostenlos einen Schlüssel erstellen und hier einfügen:</p>
       <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
       <div class="modal-actions">
         <button style="background:#0a84ff; color:#fff;" onclick="saveApiKey()">Speichern</button>
@@ -238,71 +238,112 @@
     closeModal();
   }
 
-  // Spracherkennung (mit Live-Text & iOS-Fehlerdiagnose)
-  let recognition = null;
-  function toggleSpeech() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Direkte Audio-Aufnahme & Gemini-Transkription (funktioniert zuverlässig auf iOS Safari)
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let activeStream = null;
+
+  async function toggleSpeech() {
     const btn = document.getElementById('micBtn');
     const status = document.getElementById('micStatus');
-    const input = document.getElementById('thoughtInput');
+    const apiKey = localStorage.getItem('gemini_api_key');
 
-    if (!SpeechRecognition) {
-      status.innerText = "⚠️ Browser unterstützt kein Web-Mikrofon";
+    // Wenn Aufnahme bereits läuft -> stoppen und auswerten
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
       return;
     }
 
-    if (recognition) {
-      recognition.stop();
+    if (!apiKey) {
+      status.innerText = "⚠️ Bitte oben rechts unter '✨ KI' deinen API-Key speichern";
+      openModal();
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      status.innerText = "⚠️ Mikrofon wird in diesem Browser nicht unterstützt";
       return;
     }
 
     try {
-      recognition = new SpeechRecognition();
-      recognition.lang = 'de-DE';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
+      activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(activeStream);
 
-      const baseText = input.value ? input.value.trim() + " " : "";
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) audioChunks.push(e.data);
+      };
 
-      recognition.onstart = () => {
+      mediaRecorder.onstart = () => {
         btn.classList.add('recording');
-        status.innerText = "🔴 Höre zu... (Tippen zum Stoppen)";
+        status.innerText = "🔴 Aufnahme läuft... (Nochmal tippen zum Fertigstellen)";
       };
 
-      recognition.onresult = (e) => {
-        let transcript = "";
-        for (let i = 0; i < e.results.length; i++) {
-          transcript += e.results[i][0].transcript;
-        }
-        input.value = baseText + transcript;
-      };
-
-      recognition.onerror = (e) => {
+      mediaRecorder.onstop = async () => {
         btn.classList.remove('recording');
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          status.innerText = "⚠️ Blockiert: In Safari-Einstellungen Mikrofon erlauben";
-        } else if (e.error === 'no-speech') {
-          status.innerText = "Keine Sprache erkannt – nochmal tippen";
-        } else {
-          status.innerText = "⚠️ Mikrofon-Fehler (" + e.error + ")";
+        if (activeStream) {
+          activeStream.getTracks().forEach(track => track.stop());
+          activeStream = null;
         }
-        recognition = null;
+
+        const rawMime = mediaRecorder.mimeType || 'audio/mp4';
+        const cleanMime = rawMime.split(';')[0];
+        const audioBlob = new Blob(audioChunks, { type: cleanMime });
+
+        if (audioBlob.size < 200) {
+          status.innerText = "Aufnahme zu kurz – bitte nochmal tippen";
+          return;
+        }
+
+        status.innerText = "⏳ KI wandelt Sprache in Text um...";
+        try {
+          const base64Audio = await blobToBase64(audioBlob);
+          await transcribeAudioWithGemini(base64Audio, cleanMime, apiKey);
+          status.innerText = "✅ Text erkannt – jetzt auf 'Gedanken sortieren' tippen";
+        } catch (err) {
+          console.error(err);
+          status.innerText = "⚠️ Fehler bei der KI-Transkription";
+        }
       };
 
-      recognition.onend = () => {
-        btn.classList.remove('recording');
-        if (!status.innerText.startsWith("⚠️")) {
-          status.innerText = "Tippen zum Sprechen";
-        }
-        recognition = null;
-      };
-
-      recognition.start();
+      mediaRecorder.start();
     } catch (err) {
+      console.error(err);
       btn.classList.remove('recording');
-      status.innerText = "⚠️ Start-Fehler: Seite bitte neu laden";
-      recognition = null;
+      status.innerText = "⚠️ Mikrofon-Zugriff verweigert: Bitte Seite neu laden";
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function transcribeAudioWithGemini(base64Audio, mimeType, apiKey) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inlineData: { mimeType: mimeType, data: base64Audio } },
+            { text: "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare." }
+          ]
+        }]
+      })
+    });
+
+    if (!res.ok) throw new Error("API Fehler bei Audio-Transkription");
+    const data = await res.json();
+    const transcript = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+
+    if (transcript) {
+      const input = document.getElementById('thoughtInput');
+      input.value = input.value ? input.value.trim() + " " + transcript : transcript;
     }
   }
 
@@ -312,6 +353,7 @@
     if (!text) return;
 
     const btn = document.getElementById('sortBtn');
+    const status = document.getElementById('micStatus');
     btn.innerText = "⏳ Fasse zusammen...";
     btn.disabled = true;
 
@@ -324,11 +366,13 @@
         summarizeLocally(text);
       }
       input.value = '';
+      status.innerText = "Tippen zum Sprechen";
       saveState();
     } catch (e) {
       console.error("KI-Fehler, nutze lokalen Parser:", e);
       summarizeLocally(text);
       input.value = '';
+      status.innerText = "Tippen zum Sprechen";
       saveState();
     } finally {
       btn.innerText = "✨ Gedanken sortieren";
@@ -336,7 +380,7 @@
     }
   }
 
-  // Wortbasierter deutscher Satz-zu-Stichpunkt-Umwandler
+  // Wortbasierter deutscher Satz-zu-Stichpunkt-Umwandler (Fallback)
   const STOP_WORDS = new Set([
     'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'mir', 'mich', 'uns', 'dir', 'dich',
     'muss', 'müsste', 'muß', 'sollte', 'soll', 'will', 'möchte', 'wollte', 'kann', 'könnte', 'darf',
