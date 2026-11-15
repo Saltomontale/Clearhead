@@ -232,36 +232,109 @@
     closeModal();
   }
 
-  async function callGeminiAPI(apiKey, payload) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-
-    try {
-      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-      clearTimeout(timer);
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-        return data.candidates[0].content.parts[0].text || "";
+  // Liest die Textantwort flexibel aus dem neuen Interactions-API-Format oder dem klassischen Format aus
+  function extractTextFromResponse(data) {
+    if (!data) return "";
+    if (typeof data.output === "string") return data.output;
+    if (Array.isArray(data.outputs)) {
+      for (let i = data.outputs.length - 1; i >= 0; i--) {
+        const out = data.outputs[i];
+        if (typeof out.text === "string") return out.text;
+        if (out.content) {
+          if (typeof out.content === "string") return out.content;
+          if (Array.isArray(out.content.parts)) {
+            const txt = out.content.parts.map(function(p) { return p.text || ""; }).join("");
+            if (txt) return txt;
+          }
+        }
       }
-
-      const errMsg = (data.error && data.error.message) ? data.error.message : ("HTTP " + res.status);
-      if (res.status === 400 && errMsg.toLowerCase().includes('api key')) {
-        throw new Error("API-Key ungültig – bitte unter '✨ KI' prüfen");
-      }
-      throw new Error(errMsg);
-    } catch (err) {
-      clearTimeout(timer);
-      if (err.name === 'AbortError') {
-        throw new Error("Zeitüberschreitung (15s) – bitte erneut versuchen");
-      }
-      throw err;
     }
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && Array.isArray(data.candidates[0].content.parts)) {
+      return data.candidates[0].content.parts.map(function(p) { return p.text || ""; }).join("");
+    }
+    return "";
+  }
+
+  // Nutzt das neue Gemini Interactions API (/v1beta/interactions) mit gemini-3.8-flash
+  async function callGeminiAPI(apiKey, promptText, wavBase64, wantJson) {
+    const models = ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-3.5-flash'];
+    let lastError = "Verbindung zur KI fehlgeschlagen";
+
+    for (let m = 0; m < models.length; m++) {
+      const modelName = models[m];
+      const controller = new AbortController();
+      const timer = setTimeout(function() { controller.abort(); }, 15000);
+
+      try {
+        // 1. Versuch: Neues Interactions API (/v1beta/interactions)
+        const interactionInput = wavBase64
+          ? [
+              { type: "audio", data: wavBase64, mime_type: "audio/wav" },
+              { type: "text", text: promptText }
+            ]
+          : promptText;
+
+        const interBody = {
+          model: modelName,
+          input: interactionInput
+        };
+        if (wantJson) {
+          interBody.response_mime_type = "application/json";
+        }
+
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions?key=' + encodeURIComponent(apiKey), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(interBody),
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+
+        const data = await res.json().catch(function() { return {}; });
+        if (res.ok) {
+          const textOut = extractTextFromResponse(data);
+          if (textOut !== "") return textOut;
+        }
+
+        const errMsg = (data.error && data.error.message) ? data.error.message : ("HTTP " + res.status);
+        if (res.status === 400 && errMsg.toLowerCase().includes('api key')) {
+          throw new Error("API-Key ungültig – bitte unter '✨ KI' prüfen");
+        }
+
+        // 2. Versuch (falls Interactions-Input-Schema abweicht): Klassischer Endpunkt mit gemini-3.8-flash
+        const parts = wavBase64
+          ? [{ inline_data: { mime_type: "audio/wav", data: wavBase64 } }, { text: promptText }]
+          : [{ text: promptText }];
+        const genBody = { contents: [{ parts: parts }] };
+        if (wantJson) {
+          genBody.generationConfig = { responseMimeType: "application/json" };
+        }
+
+        const res2 = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent?key=' + encodeURIComponent(apiKey), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(genBody)
+        });
+        const data2 = await res2.json().catch(function() { return {}; });
+        if (res2.ok) {
+          const textOut2 = extractTextFromResponse(data2);
+          if (textOut2 !== "") return textOut2;
+        }
+
+        lastError = (data2.error && data2.error.message) ? data2.error.message : errMsg;
+      } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') {
+          lastError = "Zeitüberschreitung (15s)";
+        } else if (err.message && err.message.includes("API-Key")) {
+          throw err;
+        } else {
+          lastError = err.message || lastError;
+        }
+      }
+    }
+
+    throw new Error(lastError);
   }
 
   let audioCtx = null;
@@ -348,14 +421,12 @@
 
     try {
       const wavBase64 = encodeWAVBase64(pcmChunks, inputSampleRate, 16000);
-      const transcript = await callGeminiAPI(apiKey, {
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: "audio/wav", data: wavBase64 } },
-            { text: "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare. Wenn nichts gesprochen wurde, gib einen leeren String zurück." }
-          ]
-        }]
-      });
+      const transcript = await callGeminiAPI(
+        apiKey,
+        "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare. Wenn nichts gesprochen wurde, gib einen leeren String zurück.",
+        wavBase64,
+        false
+      );
 
       const cleanText = transcript.trim();
       if (cleanText) {
@@ -609,12 +680,9 @@
       "Antworte NUR als valides JSON im Format:\n" +
       "{\"events\": [{\"title\": \"Kurzer Stichpunkt\", \"date\": \"YYYY-MM-DD\", \"time\": \"HH:MM\"}], \"todos\": [{\"title\": \"Kurzer Stichpunkt\", \"category\": \"work\" | \"private\"}]}";
 
-    const rawJson = await callGeminiAPI(apiKey, {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" }
-    });
-
-    const parsed = JSON.parse(rawJson);
+    const rawResponse = await callGeminiAPI(apiKey, prompt, null, true);
+    const cleanJson = rawResponse.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleanJson);
 
     (parsed.events || []).forEach(function(ev) {
       state.events.unshift({ id: Date.now() + Math.random(), title: ev.title, date: ev.date || todayISO, time: ev.time || "09:00" });
