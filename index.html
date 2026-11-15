@@ -211,6 +211,8 @@
     weekday: 'long', day: 'numeric', month: 'long'
   });
 
+  let cachedFlashModels = null;
+
   function updateAiBadge() {
     const key = (localStorage.getItem('gemini_api_key') || '').trim();
     const btn = document.getElementById('aiStatusBtn');
@@ -235,14 +237,52 @@
     const val = document.getElementById('apiKeyInput').value.trim();
     if (val) localStorage.setItem('gemini_api_key', val);
     else localStorage.removeItem('gemini_api_key');
+    cachedFlashModels = null;
     updateAiBadge();
     closeModal();
   }
 
-  // Zentrale Gemini-Anfrage mit Modell-Fallback & klarer Fehlermeldung
+  // Fragt automatisch die aktuell auf diesem API-Key verfügbaren Gemini-Flash-Modelle ab
+  async function getAvailableFlashModels(apiKey) {
+    if (cachedFlashModels) return cachedFlashModels;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!Array.isArray(data.models)) return null;
+
+      const candidates = data.models
+        .filter(m =>
+          m.name &&
+          Array.isArray(m.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes('generateContent') &&
+          /gemini/i.test(m.name) &&
+          /flash/i.test(m.name) &&
+          !/1\.0|1\.5|2\.0|image|tts|vision|embedding|aqa/i.test(m.name)
+        )
+        .map(m => m.name.replace(/^models\//, ''));
+
+      candidates.sort((a, b) => {
+        const verA = parseFloat((a.match(/gemini-(\d+(?:\.\d+)?)/i) || [0, 0])[1]);
+        const verB = parseFloat((b.match(/gemini-(\d+(?:\.\d+)?)/i) || [0, 0])[1]);
+        if (verB !== verA) return verB - verA;
+        const score = (name) => (name.includes('lite') ? -2 : 0) + (name.includes('preview') || name.includes('exp') ? -1 : 0);
+        return score(b) - score(a);
+      });
+
+      if (candidates.length > 0) {
+        cachedFlashModels = candidates;
+        return candidates;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // Zentrale Gemini-Anfrage ohne veraltete 2.0-Modelle
   async function callGeminiAPI(apiKey, payload) {
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
-    let lastError = "Unbekannter API-Fehler";
+    const discovered = await getAvailableFlashModels(apiKey);
+    const models = discovered || ['gemini-3-flash', 'gemini-3.0-flash', 'gemini-2.5-flash'];
+    let firstError = null;
 
     for (const model of models) {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
@@ -255,13 +295,15 @@
       if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text !== undefined) {
         return data.candidates[0].content.parts[0].text;
       }
-      lastError = data.error?.message || `HTTP ${res.status}`;
-      // Bei ungültigem API-Key sofort abbrechen
-      if (res.status === 400 && lastError.toLowerCase().includes('api key')) {
+
+      const errMsg = data.error?.message || `HTTP ${res.status}`;
+      if (res.status === 400 && errMsg.toLowerCase().includes('api key')) {
         throw new Error("API-Key ungültig – bitte unter '✨ KI' prüfen");
       }
+      if (!firstError) firstError = `${model}: ${errMsg}`;
     }
-    throw new Error(lastError);
+
+    throw new Error(firstError || "Kein aktives Gemini-Modell erreichbar");
   }
 
   // Direkte WAV-Audioaufnahme im Browser (100 % kompatibel mit iOS Safari & Gemini)
@@ -354,7 +396,7 @@
       const transcript = await callGeminiAPI(apiKey, {
         contents: [{
           parts: [
-            { inline_data: { mime_type: "audio/wav", data: wavBase64 } },
+            { inlineData: { mimeType: "audio/wav", data: wavBase64 } },
             { text: "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare. Wenn nichts gesprochen wurde, gib einen leeren String zurück." }
           ]
         }]
