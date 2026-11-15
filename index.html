@@ -232,7 +232,6 @@
     closeModal();
   }
 
-  // Liest die Textantwort flexibel aus dem neuen Interactions-API-Format oder dem klassischen Format aus
   function extractTextFromResponse(data) {
     if (!data) return "";
     if (typeof data.output === "string") return data.output;
@@ -255,86 +254,85 @@
     return "";
   }
 
-  // Nutzt das neue Gemini Interactions API (/v1beta/interactions) mit gemini-3.8-flash
+  // Direkter Aufruf von gemini-3.8-flash über das Interactions API mit 10s Timeout
   async function callGeminiAPI(apiKey, promptText, wavBase64, wantJson) {
-    const models = ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-3.5-flash'];
-    let lastError = "Verbindung zur KI fehlgeschlagen";
+    const controller = new AbortController();
+    const timer = setTimeout(function() { controller.abort(); }, 10000);
 
-    for (let m = 0; m < models.length; m++) {
-      const modelName = models[m];
-      const controller = new AbortController();
-      const timer = setTimeout(function() { controller.abort(); }, 15000);
+    try {
+      const interactionInput = wavBase64
+        ? [
+            { type: "audio", data: wavBase64, mime_type: "audio/wav" },
+            { type: "text", text: promptText }
+          ]
+        : promptText;
 
-      try {
-        // 1. Versuch: Neues Interactions API (/v1beta/interactions)
-        const interactionInput = wavBase64
-          ? [
-              { type: "audio", data: wavBase64, mime_type: "audio/wav" },
-              { type: "text", text: promptText }
-            ]
-          : promptText;
-
-        const interBody = {
-          model: modelName,
-          input: interactionInput
+      const interBody = {
+        model: "gemini-3.8-flash",
+        input: interactionInput
+      };
+      if (wantJson) {
+        interBody.response_format = {
+          type: "json_schema",
+          schema: {
+            type: "object",
+            properties: {
+              events: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    date: { type: "string" },
+                    time: { type: "string" }
+                  },
+                  required: ["title", "date", "time"]
+                }
+              },
+              todos: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    category: { type: "string" }
+                  },
+                  required: ["title", "category"]
+                }
+              }
+            },
+            required: ["events", "todos"]
+          }
         };
-        if (wantJson) {
-          interBody.response_mime_type = "application/json";
-        }
-
-        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions?key=' + encodeURIComponent(apiKey), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(interBody),
-          signal: controller.signal
-        });
-        clearTimeout(timer);
-
-        const data = await res.json().catch(function() { return {}; });
-        if (res.ok) {
-          const textOut = extractTextFromResponse(data);
-          if (textOut !== "") return textOut;
-        }
-
-        const errMsg = (data.error && data.error.message) ? data.error.message : ("HTTP " + res.status);
-        if (res.status === 400 && errMsg.toLowerCase().includes('api key')) {
-          throw new Error("API-Key ungültig – bitte unter '✨ KI' prüfen");
-        }
-
-        // 2. Versuch (falls Interactions-Input-Schema abweicht): Klassischer Endpunkt mit gemini-3.8-flash
-        const parts = wavBase64
-          ? [{ inline_data: { mime_type: "audio/wav", data: wavBase64 } }, { text: promptText }]
-          : [{ text: promptText }];
-        const genBody = { contents: [{ parts: parts }] };
-        if (wantJson) {
-          genBody.generationConfig = { responseMimeType: "application/json" };
-        }
-
-        const res2 = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent?key=' + encodeURIComponent(apiKey), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(genBody)
-        });
-        const data2 = await res2.json().catch(function() { return {}; });
-        if (res2.ok) {
-          const textOut2 = extractTextFromResponse(data2);
-          if (textOut2 !== "") return textOut2;
-        }
-
-        lastError = (data2.error && data2.error.message) ? data2.error.message : errMsg;
-      } catch (err) {
-        clearTimeout(timer);
-        if (err.name === 'AbortError') {
-          lastError = "Zeitüberschreitung (15s)";
-        } else if (err.message && err.message.includes("API-Key")) {
-          throw err;
-        } else {
-          lastError = err.message || lastError;
-        }
       }
-    }
 
-    throw new Error(lastError);
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions?key=' + encodeURIComponent(apiKey), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(interBody),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      const data = await res.json().catch(function() { return {}; });
+      if (res.ok) {
+        const textOut = extractTextFromResponse(data);
+        if (textOut !== "") return textOut;
+        throw new Error("Leere Antwort von Gemini 3.8 Flash");
+      }
+
+      const errMsg = (data.error && data.error.message) ? data.error.message : ("HTTP " + res.status);
+      if (res.status === 400 && errMsg.toLowerCase().includes('api key')) {
+        throw new Error("API-Key ungültig – bitte unter '✨ KI' prüfen");
+      }
+      throw new Error(errMsg);
+    } catch (err) {
+      clearTimeout(timer);
+      if (err.name === 'AbortError') {
+        throw new Error("Zeitüberschreitung (10s) – Verbindung zu Gemini unterbrochen");
+      }
+      throw err;
+    }
   }
 
   let audioCtx = null;
@@ -405,7 +403,7 @@
 
     isRecording = false;
     btn.classList.remove('recording');
-    status.innerText = "⏳ KI wandelt Sprache in Text um...";
+    status.innerText = "⏳ 1/2 Verpacke Audio...";
 
     try {
       if (scriptProcessor) scriptProcessor.disconnect();
@@ -420,7 +418,9 @@
     }
 
     try {
-      const wavBase64 = encodeWAVBase64(pcmChunks, inputSampleRate, 16000);
+      const wavBase64 = await encodeWAVBase64(pcmChunks, inputSampleRate, 16000);
+      status.innerText = "⏳ 2/2 Sende an Gemini 3.8 Flash...";
+
       const transcript = await callGeminiAPI(
         apiKey,
         "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare. Wenn nichts gesprochen wurde, gib einen leeren String zurück.",
@@ -441,6 +441,7 @@
     }
   }
 
+  // Nutzt den nativen FileReader des iPhones statt einer langsamen JS-Schleife
   function encodeWAVBase64(buffers, inRate, outRate) {
     let totalLen = 0;
     for (let i = 0; i < buffers.length; i++) totalLen += buffers[i].length;
@@ -484,13 +485,16 @@
       view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
     }
 
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    const chunk = 8192;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-    }
-    return btoa(binary);
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onloadend = function() {
+        const res = reader.result || "";
+        resolve(res.split(',')[1] || "");
+      };
+      reader.onerror = function() { reject(new Error("Audio-Konvertierung fehlgeschlagen")); };
+      reader.readAsDataURL(blob);
+    });
   }
 
   async function processThoughts() {
@@ -508,16 +512,17 @@
     try {
       if (apiKey) {
         await summarizeWithGemini(text, apiKey);
+        status.innerText = "Tippen zum Sprechen";
       } else {
         summarizeLocally(text);
+        status.innerText = "Tippen zum Sprechen";
       }
       input.value = '';
-      status.innerText = "Tippen zum Sprechen";
       saveState();
     } catch (e) {
       summarizeLocally(text);
       input.value = '';
-      status.innerText = "Tippen zum Sprechen";
+      status.innerText = "⚠️ KI-Hinweis: " + (e.message || "Lokal sortiert");
       saveState();
     } finally {
       btn.innerText = "✨ Gedanken sortieren";
@@ -676,9 +681,8 @@
     const weekday = new Date().toLocaleDateString('de-DE', { weekday: 'long' });
     const prompt = "Heute ist " + weekday + ", der " + todayISO + ".\n" +
       "Analysiere diese eingesprochene Notiz: \"" + text + "\".\n" +
-      "Extrahiere alle Termine und Aufgaben und fasse jeden Punkt extrem knapp als präzisen Stichpunkt (2 bis 4 Wörter, Infinitiv oder Nomen, KEINE Füllwörter, keine ganzen Sätze) zusammen!\n" +
-      "Antworte NUR als valides JSON im Format:\n" +
-      "{\"events\": [{\"title\": \"Kurzer Stichpunkt\", \"date\": \"YYYY-MM-DD\", \"time\": \"HH:MM\"}], \"todos\": [{\"title\": \"Kurzer Stichpunkt\", \"category\": \"work\" | \"private\"}]}";
+      "Extrahiere alle Termine und Aufgaben und fasse jeden Punkt extrem knapp als präzisen Stichpunkt (2 bis 4 Wörter, Infinitiv oder Nomen, KEINE Füllwörter, keine ganzen Sätze) zusammen! " +
+      "Setze category bei beruflichen Aufgaben auf 'work', sonst auf 'private'.";
 
     const rawResponse = await callGeminiAPI(apiKey, prompt, null, true);
     const cleanJson = rawResponse.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
