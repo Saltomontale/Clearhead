@@ -70,6 +70,7 @@
     font-size: 11px;
     color: #8e8e93;
     text-align: center;
+    line-height: 1.3;
   }
   @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
@@ -211,7 +212,7 @@
   });
 
   function updateAiBadge() {
-    const key = localStorage.getItem('gemini_api_key');
+    const key = (localStorage.getItem('gemini_api_key') || '').trim();
     const btn = document.getElementById('aiStatusBtn');
     if (key) {
       btn.innerText = '✨ KI aktiv';
@@ -238,19 +239,47 @@
     closeModal();
   }
 
-  // Direkte Audio-Aufnahme & Gemini-Transkription (funktioniert zuverlässig auf iOS Safari)
-  let mediaRecorder = null;
-  let audioChunks = [];
-  let activeStream = null;
+  // Zentrale Gemini-Anfrage mit Modell-Fallback & klarer Fehlermeldung
+  async function callGeminiAPI(apiKey, payload) {
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    let lastError = "Unbekannter API-Fehler";
+
+    for (const model of models) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text !== undefined) {
+        return data.candidates[0].content.parts[0].text;
+      }
+      lastError = data.error?.message || `HTTP ${res.status}`;
+      // Bei ungültigem API-Key sofort abbrechen
+      if (res.status === 400 && lastError.toLowerCase().includes('api key')) {
+        throw new Error("API-Key ungültig – bitte unter '✨ KI' prüfen");
+      }
+    }
+    throw new Error(lastError);
+  }
+
+  // Direkte WAV-Audioaufnahme im Browser (100 % kompatibel mit iOS Safari & Gemini)
+  let audioCtx = null;
+  let mediaStream = null;
+  let scriptProcessor = null;
+  let mediaSource = null;
+  let pcmChunks = [];
+  let isRecording = false;
+  let inputSampleRate = 44100;
 
   async function toggleSpeech() {
     const btn = document.getElementById('micBtn');
     const status = document.getElementById('micStatus');
-    const apiKey = localStorage.getItem('gemini_api_key');
+    const apiKey = (localStorage.getItem('gemini_api_key') || '').trim();
 
-    // Wenn Aufnahme bereits läuft -> stoppen und auswerten
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
+    if (isRecording) {
+      await stopRecordingAndTranscribe(apiKey);
       return;
     }
 
@@ -266,85 +295,135 @@
     }
 
     try {
-      activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunks = [];
-      mediaRecorder = new MediaRecorder(activeStream);
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContextClass();
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) audioChunks.push(e.data);
+      inputSampleRate = audioCtx.sampleRate || 44100;
+      pcmChunks = [];
+
+      mediaSource = audioCtx.createMediaStreamSource(mediaStream);
+      scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+
+      scriptProcessor.onaudioprocess = (e) => {
+        if (!isRecording) return;
+        const channelData = e.inputBuffer.getChannelData(0);
+        pcmChunks.push(new Float32Array(channelData));
       };
 
-      mediaRecorder.onstart = () => {
-        btn.classList.add('recording');
-        status.innerText = "🔴 Aufnahme läuft... (Nochmal tippen zum Fertigstellen)";
-      };
+      mediaSource.connect(scriptProcessor);
+      scriptProcessor.connect(audioCtx.destination);
 
-      mediaRecorder.onstop = async () => {
-        btn.classList.remove('recording');
-        if (activeStream) {
-          activeStream.getTracks().forEach(track => track.stop());
-          activeStream = null;
-        }
-
-        const rawMime = mediaRecorder.mimeType || 'audio/mp4';
-        const cleanMime = rawMime.split(';')[0];
-        const audioBlob = new Blob(audioChunks, { type: cleanMime });
-
-        if (audioBlob.size < 200) {
-          status.innerText = "Aufnahme zu kurz – bitte nochmal tippen";
-          return;
-        }
-
-        status.innerText = "⏳ KI wandelt Sprache in Text um...";
-        try {
-          const base64Audio = await blobToBase64(audioBlob);
-          await transcribeAudioWithGemini(base64Audio, cleanMime, apiKey);
-          status.innerText = "✅ Text erkannt – jetzt auf 'Gedanken sortieren' tippen";
-        } catch (err) {
-          console.error(err);
-          status.innerText = "⚠️ Fehler bei der KI-Transkription";
-        }
-      };
-
-      mediaRecorder.start();
+      isRecording = true;
+      btn.classList.add('recording');
+      status.innerText = "🔴 Aufnahme läuft... (Nochmal tippen zum Fertigstellen)";
     } catch (err) {
       console.error(err);
+      isRecording = false;
       btn.classList.remove('recording');
       status.innerText = "⚠️ Mikrofon-Zugriff verweigert: Bitte Seite neu laden";
     }
   }
 
-  function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  }
+  async function stopRecordingAndTranscribe(apiKey) {
+    const btn = document.getElementById('micBtn');
+    const status = document.getElementById('micStatus');
 
-  async function transcribeAudioWithGemini(base64Audio, mimeType, apiKey) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    isRecording = false;
+    btn.classList.remove('recording');
+
+    try {
+      if (scriptProcessor) scriptProcessor.disconnect();
+      if (mediaSource) mediaSource.disconnect();
+      if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+      if (audioCtx && audioCtx.state !== 'closed') await audioCtx.close();
+    } catch (e) {}
+
+    if (pcmChunks.length === 0) {
+      status.innerText = "Aufnahme zu kurz – bitte nochmal tippen";
+      return;
+    }
+
+    status.innerText = "⏳ KI wandelt Sprache in Text um...";
+
+    try {
+      const wavBase64 = encodeWAVBase64(pcmChunks, inputSampleRate, 16000);
+      const transcript = await callGeminiAPI(apiKey, {
         contents: [{
           parts: [
-            { inlineData: { mimeType: mimeType, data: base64Audio } },
-            { text: "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare." }
+            { inline_data: { mime_type: "audio/wav", data: wavBase64 } },
+            { text: "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare. Wenn nichts gesprochen wurde, gib einen leeren String zurück." }
           ]
         }]
-      })
-    });
+      });
 
-    if (!res.ok) throw new Error("API Fehler bei Audio-Transkription");
-    const data = await res.json();
-    const transcript = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-
-    if (transcript) {
-      const input = document.getElementById('thoughtInput');
-      input.value = input.value ? input.value.trim() + " " + transcript : transcript;
+      const cleanText = transcript.trim();
+      if (cleanText) {
+        const input = document.getElementById('thoughtInput');
+        input.value = input.value ? input.value.trim() + " " + cleanText : cleanText;
+        status.innerText = "✅ Text erkannt – jetzt auf 'Gedanken sortieren' tippen";
+      } else {
+        status.innerText = "Keine Sprache erkannt – bitte nochmal versuchen";
+      }
+    } catch (err) {
+      console.error(err);
+      status.innerText = "⚠️ " + (err.message || "Fehler bei der KI-Transkription");
     }
+  }
+
+  function encodeWAVBase64(buffers, inRate, outRate) {
+    let totalLen = 0;
+    for (const b of buffers) totalLen += b.length;
+    const merged = new Float32Array(totalLen);
+    let offset = 0;
+    for (const b of buffers) {
+      merged.set(b, offset);
+      offset += b.length;
+    }
+
+    const ratio = inRate / outRate;
+    const newLen = Math.max(1, Math.round(merged.length / ratio));
+    const samples = new Float32Array(newLen);
+    for (let i = 0; i < newLen; i++) {
+      samples[i] = merged[Math.min(Math.floor(i * ratio), merged.length - 1)];
+    }
+
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+    const writeStr = (pos, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(pos + i, str.charCodeAt(i));
+    };
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, outRate, true);
+    view.setUint32(28, outRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    let pos = 44;
+    for (let i = 0; i < samples.length; i++, pos += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 8192;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
   }
 
   async function processThoughts() {
@@ -357,7 +436,7 @@
     btn.innerText = "⏳ Fasse zusammen...";
     btn.disabled = true;
 
-    const apiKey = localStorage.getItem('gemini_api_key');
+    const apiKey = (localStorage.getItem('gemini_api_key') || '').trim();
 
     try {
       if (apiKey) {
@@ -548,18 +627,12 @@ Antworte NUR als valides JSON im Format:
   "todos": [{"title": "Kurzer Stichpunkt", "category": "work" | "private"}]
 }`;
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      })
+    const rawJson = await callGeminiAPI(apiKey, {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" }
     });
 
-    if (!res.ok) throw new Error("API Fehler");
-    const data = await res.json();
-    const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+    const parsed = JSON.parse(rawJson);
 
     (parsed.events || []).forEach(ev => {
       state.events.unshift({ id: Date.now() + Math.random(), title: ev.title, date: ev.date || todayISO, time: ev.time || "09:00" });
