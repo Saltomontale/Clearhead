@@ -55,18 +55,26 @@
     gap: 8px;
   }
   .mic-btn {
-    width: 60px; height: 60px; border-radius: 50%;
-    background-color: #0a84ff; border: none; font-size: 26px;
+    width: 68px; height: 68px; border-radius: 50%;
+    background-color: #0a84ff; border: none; font-size: 30px;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
-    transition: transform 0.15s;
+    cursor: pointer; box-shadow: 0 4px 14px rgba(10, 132, 255, 0.35);
+    transition: all 0.2s;
   }
-  .mic-btn:active { transform: scale(0.94); }
+  .mic-btn.recording {
+    background-color: #ff3b30;
+    animation: pulse 1.4s infinite;
+  }
   .mic-status {
     font-size: 12px;
     color: #8e8e93;
     text-align: center;
     line-height: 1.35;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+    70% { box-shadow: 0 0 0 16px rgba(255, 59, 48, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
   }
   textarea {
     width: 100%; background-color: #2c2c2e; color: #ffffff;
@@ -136,11 +144,11 @@
 
   <div class="card">
     <div class="mic-container">
-      <button id="micBtn" class="mic-btn" onclick="focusDictation()">🎙️</button>
-      <span id="micStatus" class="mic-status">Tippen &rarr; unten rechts auf der Tastatur diktieren</span>
+      <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
+      <span id="micStatus" class="mic-status">Tippen zum Sprechen</span>
     </div>
 
-    <textarea id="thoughtInput" rows="3" placeholder="Tippe hier oder auf das Mikrofon und diktiere über deine iPhone-Tastatur..."></textarea>
+    <textarea id="thoughtInput" rows="3" placeholder="Tippe auf das Mikrofon und sprich einfach drauflos..."></textarea>
 
     <button id="sortBtn" class="btn-primary" onclick="processThoughts()">✨ Gedanken sortieren</button>
   </div>
@@ -166,7 +174,7 @@
   <div id="apiModal" class="modal">
     <div class="modal-box">
       <h3>✨ Google Gemini KI</h3>
-      <p>Für KI-Stichpunkte kannst du auf <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> kostenlos einen Schlüssel erstellen und hier einfügen:</p>
+      <p>Für KI-Spracherkennung und Stichpunkte kannst du auf <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> kostenlos einen Schlüssel erstellen und hier einfügen:</p>
       <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
       <div class="modal-actions">
         <button style="background:#0a84ff; color:#fff;" onclick="saveApiKey()">Speichern</button>
@@ -219,13 +227,7 @@
     closeModal();
   }
 
-  function focusDictation() {
-    const input = document.getElementById('thoughtInput');
-    const status = document.getElementById('micStatus');
-    input.focus();
-    status.innerText = "👇 Jetzt unten rechts auf das iPhone-Mikrofon tippen";
-  }
-
+  // Liest den Text sauber aus dem Interactions-API-Format aus
   function extractTextFromResponse(data) {
     if (!data) return "";
     if (typeof data.output === "string") return data.output;
@@ -248,9 +250,10 @@
     return "";
   }
 
-  async function callGeminiTextAPI(apiKey, promptText) {
+  // Direkter Aufruf von gemini-3.8-flash über /v1beta/interactions (ohne ungültiges response_format)
+  async function callGeminiAPI(apiKey, interactionInput) {
     const controller = new AbortController();
-    const timer = setTimeout(function() { controller.abort(); }, 10000);
+    const timer = setTimeout(function() { controller.abort(); }, 15000);
 
     try {
       const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions?key=' + encodeURIComponent(apiKey), {
@@ -258,39 +261,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: "gemini-3.8-flash",
-          input: promptText,
-          response_format: {
-            type: "json_schema",
-            schema: {
-              type: "object",
-              properties: {
-                events: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      title: { type: "string" },
-                      date: { type: "string" },
-                      time: { type: "string" }
-                    },
-                    required: ["title", "date", "time"]
-                  }
-                },
-                todos: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      title: { type: "string" },
-                      category: { type: "string" }
-                    },
-                    required: ["title", "category"]
-                  }
-                }
-              },
-              required: ["events", "todos"]
-            }
-          }
+          input: interactionInput
         }),
         signal: controller.signal
       });
@@ -311,10 +282,114 @@
     } catch (err) {
       clearTimeout(timer);
       if (err.name === 'AbortError') {
-        throw new Error("Zeitüberschreitung (10s)");
+        throw new Error("Zeitüberschreitung (15s)");
       }
       throw err;
     }
+  }
+
+  // Komprimierte Direkt-Aufnahme über MediaRecorder (winzige Dateigröße, keine Hänger)
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let activeStream = null;
+
+  async function toggleRecording() {
+    const btn = document.getElementById('micBtn');
+    const status = document.getElementById('micStatus');
+    const apiKey = (localStorage.getItem('gemini_api_key') || '').trim();
+
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+
+    if (!apiKey) {
+      status.innerText = "⚠️ Bitte oben rechts unter '✨ KI' deinen API-Key speichern";
+      openModal();
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      status.innerText = "⚠️ Mikrofon wird in diesem Browser nicht unterstützt";
+      return;
+    }
+
+    try {
+      activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+
+      let options = {};
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 32000 };
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4', audioBitsPerSecond: 32000 };
+      }
+
+      mediaRecorder = new MediaRecorder(activeStream, options);
+
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data && e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstart = function() {
+        btn.classList.add('recording');
+        status.innerText = "🔴 Aufnahme läuft... (Nochmal tippen zum Beenden)";
+      };
+
+      mediaRecorder.onstop = async function() {
+        btn.classList.remove('recording');
+        if (activeStream) {
+          activeStream.getTracks().forEach(function(t) { t.stop(); });
+          activeStream = null;
+        }
+
+        const mime = (mediaRecorder.mimeType || 'audio/mp4').split(';')[0];
+        const blob = new Blob(audioChunks, { type: mime });
+        mediaRecorder = null;
+
+        if (blob.size < 150) {
+          status.innerText = "Aufnahme zu kurz – bitte nochmal tippen";
+          return;
+        }
+
+        status.innerText = "⏳ KI transkribiert (" + Math.round(blob.size / 1024) + " KB)...";
+
+        try {
+          const base64Audio = await blobToBase64(blob);
+          const transcript = await callGeminiAPI(apiKey, [
+            { type: "audio", data: base64Audio, mime_type: mime },
+            { type: "text", text: "Transkribiere diese deutsche Sprachaufnahme exakt in geschriebenen Text. Gib ausschließlich den gesprochenen Text zurück, ohne Anführungszeichen und ohne Kommentare." }
+          ]);
+
+          const cleanText = transcript.trim();
+          if (cleanText) {
+            const input = document.getElementById('thoughtInput');
+            input.value = input.value ? input.value.trim() + " " + cleanText : cleanText;
+            status.innerText = "✅ Erkannt – jetzt auf 'Gedanken sortieren' tippen";
+          } else {
+            status.innerText = "Keine Sprache erkannt – bitte nochmal versuchen";
+          }
+        } catch (err) {
+          status.innerText = "⚠️ " + (err.message || "Fehler bei Spracherkennung");
+        }
+      };
+
+      mediaRecorder.start(250);
+    } catch (err) {
+      btn.classList.remove('recording');
+      status.innerText = "⚠️ Mikrofon-Zugriff blockiert: In Safari-Einstellungen erlauben";
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onloadend = function() {
+        const res = reader.result || "";
+        resolve(res.split(',')[1] || "");
+      };
+      reader.onerror = function() { reject(new Error("Audio-Lesefehler")); };
+      reader.readAsDataURL(blob);
+    });
   }
 
   async function processThoughts() {
@@ -332,18 +407,15 @@
     try {
       if (apiKey) {
         await summarizeWithGemini(text, apiKey);
-        status.innerText = "✅ Mit Gemini 3.8 Flash sortiert";
+        status.innerText = "✅ Mit Gemini 3.8 Flash intelligent zusammengefasst";
       } else {
         summarizeLocally(text);
-        status.innerText = "Tippen → unten rechts auf der Tastatur diktieren";
+        status.innerText = "Tippen zum Sprechen";
       }
       input.value = '';
       saveState();
     } catch (e) {
-      summarizeLocally(text);
-      input.value = '';
-      status.innerText = "⚠️ KI-Fehler (" + (e.message || "Unbekannt") + ") – lokal sortiert";
-      saveState();
+      status.innerText = "⚠️ KI-Fehler: " + (e.message || "Unbekannter Fehler");
     } finally {
       btn.innerText = "✨ Gedanken sortieren";
       btn.disabled = false;
@@ -354,166 +426,49 @@
     const todayISO = new Date().toISOString().split('T')[0];
     const weekday = new Date().toLocaleDateString('de-DE', { weekday: 'long' });
     const prompt = "Heute ist " + weekday + ", der " + todayISO + ".\n" +
-      "Analysiere diese Notiz: \"" + text + "\".\n" +
-      "Extrahiere alle Termine und Aufgaben und fasse jeden Punkt extrem knapp als präzisen Stichpunkt (2 bis 4 Wörter, Infinitiv oder Nomen, KEINE Füllwörter, keine ganzen Sätze) zusammen! " +
-      "Setze category bei beruflichen Aufgaben auf 'work', sonst auf 'private'.";
+      "Analysiere diese gesprochene Gedankennotiz: \"" + text + "\".\n" +
+      "Extrahiere alle Termine und Aufgaben und fasse jeden Punkt intelligent, klar und extrem prägnant als kurzen Stichpunkt (2 bis 5 Wörter, Infinitiv oder Nomen, KEINE Füllwörter, keine ganzen Sätze) zusammen!\n" +
+      "Setze category bei beruflichen Aufgaben auf \"work\", bei privaten Aufgaben auf \"private\".\n" +
+      "Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt ohne Markdown-Codeblock und ohne Erklärung in exakt diesem Format:\n" +
+      "{\"events\": [{\"title\": \"Stichpunkt\", \"date\": \"YYYY-MM-DD\", \"time\": \"HH:MM\"}], \"todos\": [{\"title\": \"Stichpunkt\", \"category\": \"work\"}]}";
 
-    const rawResponse = await callGeminiTextAPI(apiKey, prompt);
-    const cleanJson = rawResponse.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    const parsed = JSON.parse(cleanJson);
+    const rawResponse = await callGeminiAPI(apiKey, prompt);
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Ungültige KI-Antwort");
+
+    const parsed = JSON.parse(jsonMatch[0]);
 
     (parsed.events || []).forEach(function(ev) {
-      state.events.unshift({ id: Date.now() + Math.random(), title: ev.title, date: ev.date || todayISO, time: ev.time || "09:00" });
+      state.events.unshift({
+        id: Date.now() + Math.random(),
+        title: ev.title,
+        date: ev.date || todayISO,
+        time: ev.time || "09:00"
+      });
     });
     (parsed.todos || []).forEach(function(td) {
-      state.todos.unshift({ id: Date.now() + Math.random(), title: td.title, done: false, category: td.category === 'work' ? 'work' : 'private' });
+      state.todos.unshift({
+        id: Date.now() + Math.random(),
+        title: td.title,
+        done: false,
+        category: td.category === 'work' ? 'work' : 'private'
+      });
     });
   }
 
-  // Lokaler Fallback-Parser
-  const STOP_WORDS = new Set([
-    'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'mir', 'mich', 'uns', 'dir', 'dich',
-    'muss', 'müsste', 'muß', 'sollte', 'soll', 'will', 'möchte', 'wollte', 'kann', 'könnte', 'darf',
-    'habe', 'hab', 'haben', 'hatte', 'bin', 'sind', 'war', 'wäre', 'werde', 'würde',
-    'eigentlich', 'unbedingt', 'wirklich', 'echt', 'mal', 'noch', 'nochmal', 'kurz', 'schnell',
-    'bitte', 'dringend', 'heute', 'morgen', 'übermorgen', 'nachher', 'später', 'gleich',
-    'irgendwann', 'vielleicht', 'auch', 'schon', 'wieder', 'eben', 'halt', 'ja', 'äh', 'ähm',
-    'also', 'übrigens', 'außerdem', 'dann', 'danach', 'vorher', 'endlich', 'zeitnah',
-    'mein', 'meine', 'meinen', 'meinem', 'meiner', 'dein', 'deine', 'sein', 'seine', 'unser', 'unsere',
-    'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen', 'einem', 'einer'
-  ]);
-
-  const VERB_TO_INF = {
-    'rufe': 'rufen', 'anrufe': 'anrufen', 'kaufe': 'kaufen', 'einkaufe': 'einkaufen',
-    'schreibe': 'schreiben', 'schicke': 'schicken', 'abschicke': 'abschicken',
-    'sende': 'senden', 'maile': 'mailen', 'überweise': 'überweisen', 'bezahle': 'bezahlen',
-    'zahle': 'zahlen', 'buche': 'buchen', 'hole': 'holen', 'abhole': 'abholen',
-    'bringe': 'bringen', 'wegbringe': 'wegbringen', 'mache': 'machen', 'fertigmache': 'fertigmachen',
-    'putze': 'putzen', 'wasche': 'waschen', 'räume': 'räumen', 'aufräume': 'aufräumen',
-    'erledige': 'erledigen', 'kläre': 'klären', 'frage': 'fragen', 'bestelle': 'bestellen',
-    'kündige': 'kündigen', 'plane': 'planen', 'nehme': 'nehmen', 'mitnehme': 'mitnehmen',
-    'sage': 'sagen', 'absage': 'absagen', 'bereite': 'bereiten', 'vorbereite': 'vorbereiten',
-    'melde': 'melden', 'anmelde': 'anmelden', 'fülle': 'füllen', 'ausfülle': 'ausfüllen',
-    'werfe': 'werfen', 'wegwerfe': 'wegwerfen', 'treffe': 'treffen', 'besuche': 'besuchen',
-    'repariere': 'reparieren', 'suche': 'suchen', 'checke': 'checken', 'prüfe': 'prüfen',
-    'vereinbare': 'vereinbaren', 'lese': 'lesen', 'packe': 'packen', 'sortiere': 'sortieren'
-  };
-
-  const SEPARABLE_PREFIXES = new Set([
-    'an', 'ein', 'auf', 'ab', 'weg', 'vor', 'aus', 'mit', 'zu', 'raus', 'hin', 'her',
-    'fertig', 'sauber', 'weiter', 'zurück', 'vorbei', 'nach', 'durch', 'um'
-  ]);
-
-  function condenseToBulletPoint(rawText, isEvent) {
-    let s = rawText.trim();
-    s = s.replace(/^.*?(?:daran\s+denken|nicht\s+vergessen|vorgenommen|überlegt|wichtig)\s*(?:,\s*)?(?:dass\s+)?/i, '');
-    s = s.replace(/^.*?(?:dass\s+ich|dass\s+wir|damit\s+ich|weil\s+ich)\s+/i, '');
-    s = s.replace(/auf\s+jeden\s+fall|auf\s+dem\s+heimweg|in\s+der\s+stadt/gi, '');
-
-    let rawWords = s.split(/\s+/).map(function(w) { return w.replace(/^[,.!?;:]+|[,.!?;:]+$/g, ''); }).filter(Boolean);
-    let filtered = [];
-    let movedVerbInf = null;
-
-    for (let i = 0; i < rawWords.length; i++) {
-      let w = rawWords[i];
-      let lower = w.toLowerCase();
-      if (STOP_WORDS.has(lower)) continue;
-
-      if (!isEvent && VERB_TO_INF[lower]) {
-        if (i === rawWords.length - 1) {
-          filtered.push(VERB_TO_INF[lower]);
-        } else {
-          movedVerbInf = VERB_TO_INF[lower];
-        }
-        continue;
-      }
-      filtered.push(w);
-    }
-
-    if (!isEvent && movedVerbInf && filtered.length > 0) {
-      let lastWordLower = filtered[filtered.length - 1].toLowerCase();
-      if (SEPARABLE_PREFIXES.has(lastWordLower) && !movedVerbInf.startsWith(lastWordLower)) {
-        filtered.pop();
-        filtered.push(lastWordLower + movedVerbInf);
-      } else {
-        filtered.push(movedVerbInf);
-      }
-    }
-
-    if (isEvent) {
-      filtered = filtered.filter(function(w) { return !/^(gehen|fahren|kommen|machen|haben|wahrnehmen|besuchen|termin|wichtigen|wichtiger)$/i.test(w); });
-      if (filtered.length > 1 && /^(zum|zur|beim|bei|in|ins|am)$/i.test(filtered[0])) {
-        filtered.shift();
-      }
-    } else {
-      if (filtered.length >= 2 && /^gehen$/i.test(filtered[filtered.length - 1])) {
-        filtered.pop();
-      }
-      if (filtered.length > 2 && /^(an|für|mit|bei|zu|zum|zur)$/i.test(filtered[0])) {
-        filtered.shift();
-      }
-    }
-
-    let result = filtered.join(' ').trim();
-    if (!result) return rawText.trim();
-    return result.charAt(0).toUpperCase() + result.slice(1);
-  }
-
+  // Lokaler Fallback (nur wenn kein API-Key hinterlegt ist)
   function summarizeLocally(text) {
-    const parts = text.split(/\s+(?:und\s+danach|und\s+vorher|und\s+außerdem|außerdem|sowie|und\s+dann\s+noch|und\s+noch|ach\s*ja\s+und|und)\s+|[,.;]+\s*/i);
-
+    const parts = text.split(/\s+(?:und\s+danach|und\s+vorher|außerdem|sowie|und\s+noch|und)\s+|[,.;]+\s*/i);
     parts.forEach(function(part) {
       let clean = part.trim();
       if (!clean) return;
-
-      const timeMatch = clean.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i);
-      const isTomorrow = /(?:^|\s)morgen(?=\s|$|[,.!?])/i.test(clean);
-      const isDayAfter = /(?:^|\s)übermorgen(?=\s|$|[,.!?])/i.test(clean);
-      const weekdayMatch = clean.match(/(?:am\s+)?(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)/i);
-      const hasEventKeyword = /(termin|meeting|call|zahnarzt|arzt|friseur|treffen|essen|abendessen|mittagessen|frühstück|geburtstag|feier|kino|training|sport|konferenz|werkstatt|flug)/i.test(clean);
-
-      if (timeMatch || ((isTomorrow || isDayAfter || weekdayMatch) && hasEventKeyword)) {
-        let d = new Date();
-        if (isTomorrow) d.setDate(d.getDate() + 1);
-        else if (isDayAfter) d.setDate(d.getDate() + 2);
-        else if (weekdayMatch) {
-          const days = ['sonntag','montag','dienstag','mittwoch','donnerstag','freitag','samstag'];
-          const target = days.indexOf(weekdayMatch[1].toLowerCase());
-          let diff = (target - d.getDay() + 7) % 7;
-          if (diff === 0) diff = 7;
-          d.setDate(d.getDate() + diff);
-        }
-
-        let hours = timeMatch ? parseInt(timeMatch[1], 10) : 9;
-        let mins = (timeMatch && timeMatch[2]) ? parseInt(timeMatch[2], 10) : 0;
-
-        const dateStr = d.toISOString().split('T')[0];
-        const timeStr = String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
-
-        let rawTitle = clean
-          .replace(/(?:^|\s)(heute|morgen|übermorgen)(?=\s|$)/gi, ' ')
-          .replace(/(?:am\s+)?(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)/gi, ' ')
-          .replace(/(?:um\s+)?\d{1,2}(?:[:.]\d{2})?\s*Uhr/gi, ' ')
-          .trim();
-
-        let title = condenseToBulletPoint(rawTitle, true);
-        if (!title) title = "Termin";
-
-        state.events.unshift({ id: Date.now() + Math.random(), title: title, date: dateStr, time: timeStr });
-      } else {
-        let category = 'private';
-        const workKeywords = ['arbeit', 'chef', 'chefin', 'meeting', 'kunde', 'kunden', 'projekt', 'büro', 'kollege', 'kollegin', 'rechnung', 'steuer', 'präsentation', 'mail', 'email', 'angebot', 'call', 'bericht', 'bewerbung', 'auftrag'];
-        if (workKeywords.some(function(kw) { return clean.toLowerCase().includes(kw); })) {
-          category = 'work';
-        }
-
-        let cleanedForPoint = clean.replace(/für\s+die\s+arbeit|auf\s+der\s+arbeit|\bprivat\b/gi, '');
-        let todoTitle = condenseToBulletPoint(cleanedForPoint, false);
-
-        if (todoTitle) {
-          state.todos.unshift({ id: Date.now() + Math.random(), title: todoTitle, done: false, category: category });
-        }
-      }
+      const isWork = /(arbeit|chef|meeting|kunde|projekt|büro|kollege|rechnung|steuer|präsentation|mail|call)/i.test(clean);
+      state.todos.unshift({
+        id: Date.now() + Math.random(),
+        title: clean.charAt(0).toUpperCase() + clean.slice(1),
+        done: false,
+        category: isWork ? 'work' : 'private'
+      });
     });
   }
 
